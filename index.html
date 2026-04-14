@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>포코타 배구</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', '맑은 고딕', Arial, sans-serif;
+    }
+    #root {
+      position: relative;
+      width: 800px;
+      height: 500px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+    }
+    canvas { display: block; position: absolute; top: 0; left: 0; }
+
+    /* ── HUD ── */
+    #hud {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center; gap: 32px;
+      padding: 8px 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.45), transparent);
+      pointer-events: none; user-select: none;
+    }
+    .score-box { display: flex; flex-direction: column; align-items: center; }
+    .score-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.1em; }
+    .score-num { font-size: 48px; font-weight: 900; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+    .score-max { font-size: 11px; color: rgba(255,255,255,0.4); }
+    .score-sep { font-size: 24px; font-weight: 900; color: rgba(255,255,255,0.6); }
+
+    /* ── 메인 메뉴 ── */
+    #menu {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      padding: 24px 40px 20px;
+      background: linear-gradient(to bottom, #42A5D8, #B8E4F4);
+      user-select: none;
+    }
+    #menu h1 {
+      font-size: 52px; font-weight: 900; color: #fff;
+      text-shadow: 0 4px 0 rgba(0,0,0,0.25); line-height: 1.1; text-align: center;
+    }
+    #menu .sub { font-size: 13px; color: #1e4a6b; font-weight: 600; margin-top: 4px; text-align: center; }
+    .char-row { display: flex; align-items: center; gap: 40px; }
+    .char-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .char-box img { width: 80px; height: 90px; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.2)); }
+    .char-box span { font-size: 12px; font-weight: 700; color: #1e4a6b; }
+    .vs-text { font-size: 36px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,0.25); }
+    .menu-section-label { font-size: 11px; font-weight: 700; color: #1e4a6b; text-transform: uppercase; letter-spacing: 0.15em; text-align: center; margin-bottom: 8px; }
+    .diff-row { display: flex; gap: 12px; justify-content: center; }
+    .diff-btn {
+      font-size: 14px; font-weight: 700; color: #fff;
+      border: none; border-radius: 12px; padding: 10px 22px; cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .diff-btn:active { transform: scale(0.95); }
+    .btn-2p {
+      font-size: 15px; font-weight: 700; color: #fff;
+      background: #7E57C2; border: none; border-radius: 12px;
+      padding: 10px 40px; cursor: pointer;
+      box-shadow: 0 4px 0 #4527A0; transition: transform 0.1s;
+    }
+    .btn-2p:active { transform: scale(0.95); }
+    .controls-row {
+      display: flex; gap: 32px;
+      background: rgba(255,255,255,0.3); border-radius: 16px;
+      padding: 10px 24px; font-size: 11px; color: #1e4a6b; font-weight: 500;
+    }
+    .controls-col { text-align: center; }
+    .controls-col strong { display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    .controls-divider { width: 1px; background: rgba(30,74,107,0.3); }
+
+    /* ── Ready/Go ── */
+    #readygo {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .readygo-box {
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+      border-radius: 24px; padding: 24px 56px;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .readygo-box.hidden { opacity: 0; transform: scale(0.6); }
+    .readygo-text {
+      font-weight: 900; letter-spacing: 0.08em;
+    }
+
+    /* ── 일시정지 ── */
+    #pause {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.55);
+    }
+    .pause-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      background: rgba(20,30,50,0.82); border: 1.5px solid rgba(255,255,255,0.18);
+      border-radius: 16px; padding: 40px 56px; backdrop-filter: blur(6px); min-width: 220px;
+    }
+    .pause-title { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,0.4); }
+    .pause-hint { font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 500; }
+    .game-btn {
+      width: 100%; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; color: #fff; cursor: pointer;
+      padding: 13px 0; transition: transform 0.1s;
+    }
+    .game-btn:active { transform: scale(0.95); }
+    .game-btn.sm { font-size: 14px; padding: 12px 0; }
+
+    /* ── 게임 오버 ── */
+    #gameover {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.72); backdrop-filter: blur(4px);
+    }
+    .gameover-card {
+      background: #fff; border-radius: 24px; padding: 40px;
+      display: flex; flex-direction: column; align-items: center; gap: 20px;
+      min-width: 300px; box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+    }
+    .trophy-circle {
+      width: 64px; height: 64px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .gameover-label { font-size: 11px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
+    .gameover-winner { font-size: 28px; font-weight: 900; }
+    .score-display {
+      display: flex; align-items: center; gap: 16px;
+      background: #f5f5f5; border-radius: 16px; padding: 16px 32px;
+    }
+    .final-score { text-align: center; }
+    .final-score-label { font-size: 12px; color: #9ca3af; font-weight: 700; }
+    .final-score-num { font-size: 40px; font-weight: 900; line-height: 1; }
+    .final-sep { font-size: 22px; color: #d1d5db; font-weight: 700; }
+    .gameover-btns { display: flex; gap: 12px; width: 100%; }
+    .btn-menu { flex: 1; padding: 12px; border: none; border-radius: 12px; background: #f0f0f0; color: #666; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+    .btn-menu:active { transform: scale(0.95); }
+    .btn-restart { flex: 1; padding: 12px; border: none; border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+    .btn-restart:active { transform: scale(0.95); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="root">
+  <canvas id="canvas" width="800" height="500"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="score-box">
+      <span class="score-label" id="label-left">나</span>
+      <span class="score-num" id="score-left" style="color:#FF6B9D">0</span>
+      <span class="score-max">/ 15</span>
+    </div>
+    <span class="score-sep">:</span>
+    <div class="score-box">
+      <span class="score-label" id="label-right">AI</span>
+      <span class="score-num" id="score-right" style="color:#42A5F5">0</span>
+      <span class="score-max">/ 15</span>
+    </div>
+  </div>
+
+  <!-- 메인 메뉴 -->
+  <div id="menu">
+    <div>
+      <h1>포코타 배구</h1>
+      <p class="sub">POKOTA VOLLEYBALL</p>
+    </div>
+    <div class="char-row">
+      <div class="char-box">
+        <img id="menu-p1" src="public/pokota_1p.png" alt="P1">
+        <span>P1</span>
+      </div>
+      <span class="vs-text">VS</span>
+      <div class="char-box">
+        <img id="menu-p2" src="public/pokota_2p.png" alt="P2" style="transform:scaleX(-1)">
+        <span>P2</span>
+      </div>
+    </div>
+    <div>
+      <p class="menu-section-label">1인 플레이 (vs AI)</p>
+      <div class="diff-row">
+        <button class="diff-btn" style="background:#66BB6A;box-shadow:0 4px 0 #388E3C" onclick="startGame('1p','easy')">쉬움</button>
+        <button class="diff-btn" style="background:#FFA726;box-shadow:0 4px 0 #E65100" onclick="startGame('1p','normal')">보통</button>
+        <button class="diff-btn" style="background:#EF5350;box-shadow:0 4px 0 #B71C1C" onclick="startGame('1p','hard')">어려움</button>
+      </div>
+    </div>
+    <button class="btn-2p" onclick="startGame('2p','normal')">2인 플레이</button>
+    <div class="controls-row">
+      <div class="controls-col">
+        <strong>P1 (분홍)</strong>
+        <p>A D 이동 · W 점프</p>
+        <p style="margin-top:2px;font-weight:700;color:#1e4a6b">Left Shift 스매시</p>
+      </div>
+      <div class="controls-divider"></div>
+      <div class="controls-col">
+        <strong>P2 (파랑)</strong>
+        <p>← → 이동 · ↑ 점프</p>
+        <p style="margin-top:2px;font-weight:700;color:#1e4a6b">Right Shift 스매시</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ready/Go -->
+  <div id="readygo" class="hidden">
+    <div class="readygo-box hidden" id="readygo-box">
+      <p class="readygo-text" id="readygo-text"></p>
+    </div>
+  </div>
+
+  <!-- 일시정지 -->
+  <div id="pause" class="hidden">
+    <div class="pause-inner">
+      <p class="pause-title">⏸ 일시정지</p>
+      <p class="pause-hint">ESC 키 또는 아래 버튼으로 재개</p>
+      <button class="game-btn" style="background:#43A047;box-shadow:0 4px 0 #1B5E20" onclick="resumeGame()">계속하기</button>
+      <button class="game-btn sm" style="background:#546E7A;box-shadow:0 4px 0 #263238" onclick="goMenu()">메인 화면으로</button>
+    </div>
+  </div>
+
+  <!-- 게임 오버 -->
+  <div id="gameover" class="hidden">
+    <div class="gameover-card">
+      <div class="trophy-circle" id="trophy">🏆</div>
+      <div style="text-align:center">
+        <p class="gameover-label">게임 종료</p>
+        <p class="gameover-winner" id="winner-text"></p>
+      </div>
+      <div class="score-display">
+        <div class="final-score">
+          <p class="final-score-label" id="final-label-left">나</p>
+          <p class="final-score-num" id="final-score-left" style="color:#FF6B9D">0</p>
+        </div>
+        <span class="final-sep">:</span>
+        <div class="final-score">
+          <p class="final-score-label" id="final-label-right">AI</p>
+          <p class="final-score-num" id="final-score-right" style="color:#42A5F5">0</p>
+        </div>
+      </div>
+      <div class="gameover-btns">
+        <button class="btn-menu" onclick="goMenu()">메뉴로</button>
+        <button class="btn-restart" id="btn-restart" onclick="restartGame()">다시 하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  상수
+// ═══════════════════════════════════════════════════════════
+const CW = 800, CH = 500
+const GROUND_Y = 460
+const NET_X = CW / 2
+const NET_W = 12
+const NET_H = 180
+const NET_TOP_Y = GROUND_Y - NET_H
+const BALL_R = 28
+const PLAYER_R = 54
+const GRAVITY = 0.45
+const JUMP_VY = -15
+const PLAYER_SPEED = 6
+const P1_START_X = 200
+const P2_START_X = 600
+const BALL_RESTITUTION = 0.72
+const MAX_BALL_SPEED = 15
+const BALL_SUBSTEPS = 5
+const WIN_SCORE = 15
+const SMASH_POWER = 1.6
+const READY_FRAMES = 90
+const GO_FRAMES = 30
+
+// ═══════════════════════════════════════════════════════════
+//  스프라이트
+// ═══════════════════════════════════════════════════════════
+const sprites = { p1: null, p2: null, ball: null }
+function preloadSprites() {
+  const p1 = new Image(); p1.onload = () => { sprites.p1 = p1 }; p1.src = 'public/pokota_1p.png'
+  const p2 = new Image(); p2.onload = () => { sprites.p2 = p2 }; p2.src = 'public/pokota_2p.png'
+  const ball = new Image(); ball.onload = () => { sprites.ball = ball }
+  ball.src = 'public/Gemini_Generated_Image_or5kmror5kmror5k.png'
+}
+preloadSprites()
+
+// ═══════════════════════════════════════════════════════════
+//  오디오
+// ═══════════════════════════════════════════════════════════
+let audioCtx = null
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioContext()
+  return audioCtx
+}
+function playTone(freq, dur, gain, type = 'sine') {
+  try {
+    const ctx = getAudioCtx()
+    const osc = ctx.createOscillator()
+    const g = ctx.createGain()
+    osc.connect(g); g.connect(ctx.destination)
+    osc.frequency.setValueAtTime(freq, ctx.currentTime)
+    osc.type = type
+    g.gain.setValueAtTime(gain, ctx.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur)
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur)
+  } catch(e) {}
+}
+function playHit()   { playTone(440, 0.08, 0.3, 'square') }
+function playSmash() { playTone(180, 0.15, 0.5, 'sawtooth'); setTimeout(() => playTone(220, 0.1, 0.3, 'sawtooth'), 50) }
+function playScore() { playTone(523, 0.12, 0.4); setTimeout(() => playTone(659, 0.12, 0.4), 130); setTimeout(() => playTone(784, 0.18, 0.4), 260) }
+function playWin()   { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.2, 0.35), i*150)) }
+
+let bgmInterval = null, bgmIdx = 0
+const BGM_NOTES = [262,294,330,349,392,440,494,523]
+function startBgm() {
+  if (bgmInterval) return
+  bgmInterval = setInterval(() => { playTone(BGM_NOTES[bgmIdx % BGM_NOTES.length], 0.18, 0.08); bgmIdx++ }, 300)
+}
+function stopBgm() {
+  if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null }
+}
+function resumeAudio() {
+  if (audioCtx?.state === 'suspended') audioCtx.resume()
+}
+
+// ═══════════════════════════════════════════════════════════
+//  구름 (애니메이션)
+// ═══════════════════════════════════════════════════════════
+const cloudList = [
+  { x:  80, y: 28, radius: 38, speed: 0.35, yTarget: 28 },
+  { x: 290, y: 55, radius: 30, speed: 0.22, yTarget: 55 },
+  { x: 500, y: 38, radius: 36, speed: 0.28, yTarget: 38 },
+  { x: 690, y: 62, radius: 28, speed: 0.18, yTarget: 62 },
+]
+const Y_BANDS = [[15,26],[33,46],[52,65],[70,80]]
+
+// ═══════════════════════════════════════════════════════════
+//  렌더링
+// ═══════════════════════════════════════════════════════════
+function drawCloud(ctx, x, y, r) {
+  ctx.fillStyle = 'rgba(255,255,255,0.88)'
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI*2)
+  ctx.arc(x+r*0.9, y+r*0.1, r*0.72, 0, Math.PI*2)
+  ctx.arc(x-r*0.85, y+r*0.15, r*0.68, 0, Math.PI*2)
+  ctx.fill()
+}
+function drawTree(ctx, x, baseY, r) {
+  const trunkH = r*0.9, trunkW = r*0.28
+  ctx.fillStyle = '#6D4C41'
+  ctx.beginPath(); ctx.roundRect(x-trunkW/2, baseY-trunkH, trunkW, trunkH, 3); ctx.fill()
+  const shades = ['#1B5E20','#2E7D32','#388E3C','#43A047','#66BB6A']
+  const positions = [[0,-r*1.0,r*0.88],[-r*0.48,-r*0.7,r*0.72],[r*0.45,-r*0.72,r*0.68],[-r*0.22,-r*1.32,r*0.6],[r*0.15,-r*1.28,r*0.55]]
+  positions.forEach(([ox,oy,cr],i) => {
+    ctx.fillStyle = shades[i]||'#43A047'
+    ctx.beginPath(); ctx.arc(x+ox, baseY+oy, cr, 0, Math.PI*2); ctx.fill()
+  })
+  ctx.fillStyle = 'rgba(144,238,144,0.3)'
+  ctx.beginPath(); ctx.arc(x-r*0.2, baseY-r*1.35, r*0.28, 0, Math.PI*2); ctx.fill()
+}
+function drawFlower(ctx, x, y, color) {
+  ctx.strokeStyle = '#558B2F'; ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.moveTo(x, y+10); ctx.lineTo(x, y); ctx.stroke()
+  ctx.fillStyle = color
+  for (let i = 0; i < 6; i++) {
+    const a = (i/6)*Math.PI*2
+    ctx.beginPath(); ctx.ellipse(x+Math.cos(a)*4.5, y+Math.sin(a)*4.5, 3.5, 2.5, a, 0, Math.PI*2); ctx.fill()
+  }
+  ctx.fillStyle = '#FFCC00'; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill()
+}
+function drawMushroom(ctx, x, y) {
+  ctx.fillStyle = '#F5E8C0'; ctx.beginPath(); ctx.roundRect(x-7, y-14, 14, 14, 2); ctx.fill()
+  ctx.fillStyle = '#C62828'; ctx.beginPath(); ctx.arc(x, y-18, 16, Math.PI, 0); ctx.fill()
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'
+  ctx.beginPath(); ctx.arc(x-5, y-23, 3.5, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(x+6, y-21, 2.8, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(x+1, y-30, 2.2, 0, Math.PI*2); ctx.fill()
+}
+function drawBush(ctx, x, y, r) {
+  const colors = ['#2E7D32','#388E3C','#43A047']
+  const offsets = [[0,0,r],[-r*0.7,r*0.2,r*0.72],[r*0.7,r*0.2,r*0.72]]
+  offsets.forEach(([ox,oy,cr],i) => {
+    ctx.fillStyle = colors[i]; ctx.beginPath(); ctx.arc(x+ox, y+oy, cr, 0, Math.PI*2); ctx.fill()
+  })
+}
+function drawBackground(ctx) {
+  const sky = ctx.createLinearGradient(0,0,0,GROUND_Y)
+  sky.addColorStop(0,'#42A5D8'); sky.addColorStop(0.55,'#7DC8E8'); sky.addColorStop(1,'#B8E4F4')
+  ctx.fillStyle = sky; ctx.fillRect(0,0,CW,GROUND_Y)
+
+  for (const cloud of cloudList) {
+    cloud.x += cloud.speed
+    if (cloud.x - cloud.radius*2.2 > CW) {
+      cloud.x = -cloud.radius*2.2
+      const usedBands = new Set(cloudList.filter(c=>c!==cloud).map(c=>Y_BANDS.findIndex(([lo,hi])=>c.yTarget>=lo&&c.yTarget<=hi)))
+      const freeBands = Y_BANDS.map((band,idx)=>({band,idx})).filter(({idx})=>!usedBands.has(idx))
+      const chosen = freeBands.length > 0 ? freeBands[Math.floor(Math.random()*freeBands.length)] : {band:Y_BANDS[Math.floor(Math.random()*Y_BANDS.length)]}
+      const [lo,hi] = chosen.band
+      cloud.y = lo + Math.floor(Math.random()*(hi-lo+1)); cloud.yTarget = cloud.y
+    }
+    drawCloud(ctx, cloud.x, cloud.y, cloud.radius)
+  }
+
+  ctx.fillStyle = 'rgba(178,235,183,0.6)'; ctx.beginPath(); ctx.ellipse(180,GROUND_Y,260,110,0,Math.PI,0); ctx.fill()
+  ctx.fillStyle = 'rgba(165,214,167,0.55)'; ctx.beginPath(); ctx.ellipse(630,GROUND_Y,230,95,0,Math.PI,0); ctx.fill()
+
+  ctx.globalAlpha = 0.45
+  drawTree(ctx,155,GROUND_Y,32); drawTree(ctx,640,GROUND_Y,28); drawTree(ctx,680,GROUND_Y,24)
+  ctx.globalAlpha = 1
+
+  const ground = ctx.createLinearGradient(0,GROUND_Y,0,CH)
+  ground.addColorStop(0,'#56AB2F'); ground.addColorStop(0.35,'#4CAF50'); ground.addColorStop(1,'#33691E')
+  ctx.fillStyle = ground; ctx.fillRect(0,GROUND_Y,CW,CH-GROUND_Y)
+  ctx.fillStyle = '#76C442'; ctx.fillRect(0,GROUND_Y,CW,6)
+
+  for (let gx=10; gx<CW; gx+=28) {
+    const h = 6+Math.sin(gx*0.37)*3
+    ctx.fillStyle = gx%56===10 ? '#8BC34A' : '#6DBE2E'
+    ctx.beginPath(); ctx.moveTo(gx,GROUND_Y); ctx.lineTo(gx+3,GROUND_Y-h); ctx.lineTo(gx+7,GROUND_Y); ctx.fill()
+  }
+
+  drawTree(ctx,22,GROUND_Y,48); drawTree(ctx,82,GROUND_Y,38); drawBush(ctx,50,GROUND_Y,18)
+  drawMushroom(ctx,118,GROUND_Y-2); drawFlower(ctx,35,GROUND_Y-12,'#FF80AB')
+  drawFlower(ctx,68,GROUND_Y-10,'#FFD54F'); drawFlower(ctx,95,GROUND_Y-11,'#FF6E40')
+
+  drawTree(ctx,CW-22,GROUND_Y,48); drawTree(ctx,CW-82,GROUND_Y,38); drawBush(ctx,CW-50,GROUND_Y,18)
+  drawMushroom(ctx,CW-118,GROUND_Y-2); drawFlower(ctx,CW-35,GROUND_Y-12,'#CE93D8')
+  drawFlower(ctx,CW-68,GROUND_Y-10,'#80DEEA'); drawFlower(ctx,CW-95,GROUND_Y-11,'#FFD54F')
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.setLineDash([10,12])
+  ctx.beginPath(); ctx.moveTo(NET_X,0); ctx.lineTo(NET_X,GROUND_Y); ctx.stroke()
+  ctx.setLineDash([])
+}
+
+function drawNet(ctx) {
+  const netLeft = NET_X - NET_W/2, netRight = NET_X + NET_W/2
+  const grad = ctx.createLinearGradient(netLeft,0,netRight,0)
+  grad.addColorStop(0,'#8D6E63'); grad.addColorStop(0.5,'#A1887F'); grad.addColorStop(1,'#8D6E63')
+  ctx.fillStyle = grad; ctx.fillRect(netLeft,NET_TOP_Y,NET_W,GROUND_Y-NET_TOP_Y)
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1
+  for (let y=NET_TOP_Y+12; y<GROUND_Y; y+=18) {
+    ctx.beginPath(); ctx.moveTo(netLeft,y); ctx.lineTo(netRight,y); ctx.stroke()
+  }
+  ctx.fillStyle = '#ECEFF1'; ctx.fillRect(netLeft-3,NET_TOP_Y-5,NET_W+6,10)
+}
+
+function drawShadow(ctx, x, r) {
+  ctx.save(); ctx.beginPath(); ctx.ellipse(x,GROUND_Y+4,r*0.75,5,0,0,Math.PI*2)
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill(); ctx.restore()
+}
+
+// 스매시 잔상
+const ballTrail = []
+function pushTrail(ball) {
+  if (ballTrail.length > 0) {
+    const last = ballTrail[ballTrail.length-1]
+    if (Math.abs(ball.x-last.x)+Math.abs(ball.y-last.y) > 100) ballTrail.length = 0
+  }
+  if (ball.isSmash) {
+    ballTrail.push({x:ball.x,y:ball.y})
+    if (ballTrail.length > 8) ballTrail.shift()
+  } else if (ballTrail.length > 0) { ballTrail.shift() }
+}
+function drawSmashTrail(ctx, ball) {
+  if (ballTrail.length < 2) return
+  for (let i=0; i<ballTrail.length; i++) {
+    const pos = ballTrail[i], t = i/ballTrail.length
+    const alpha = t*0.55, r = ball.radius*1.6875*(0.25+t*0.6)
+    const g = ctx.createRadialGradient(pos.x,pos.y,0,pos.x,pos.y,r)
+    g.addColorStop(0,`rgba(255,220,0,${alpha})`); g.addColorStop(0.5,`rgba(255,100,0,${alpha*0.7})`); g.addColorStop(1,'rgba(255,50,0,0)')
+    ctx.beginPath(); ctx.arc(pos.x,pos.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
+  }
+}
+
+function drawBallSprite(ctx, ball) {
+  const {x,y,radius} = ball
+  if (!isFinite(x)||!isFinite(y)||!isFinite(radius)||radius<=0) return
+  ctx.save()
+  const vr = radius*1.6875
+  if (sprites.ball) {
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(sprites.ball, x-vr, y-vr, vr*2, vr*2)
+  } else {
+    ctx.beginPath(); ctx.arc(x,y,vr,0,Math.PI*2); ctx.clip()
+    const base = ctx.createRadialGradient(x-vr*0.28,y-vr*0.28,vr*0.05,x,y,vr)
+    base.addColorStop(0,'#FEFCF0'); base.addColorStop(0.48,'#F2E6BC'); base.addColorStop(1,'#D8C080')
+    ctx.fillStyle = base; ctx.fillRect(x-vr-1,y-vr-1,vr*2+2,vr*2+2)
+  }
+  if (ball.isSmash) {
+    const fire = ctx.createRadialGradient(x,y,vr*0.4,x,y,vr)
+    fire.addColorStop(0,'rgba(255,200,0,0.55)'); fire.addColorStop(0.6,'rgba(255,80,0,0.30)'); fire.addColorStop(1,'rgba(255,0,0,0)')
+    ctx.beginPath(); ctx.arc(x,y,vr,0,Math.PI*2); ctx.fillStyle=fire; ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawPokota(ctx, player) {
+  const sprite = player.side === 'left' ? sprites.p1 : sprites.p2
+  const size = player.radius*2.4
+  ctx.save()
+  if (sprite) {
+    if (!player.facingRight) {
+      ctx.translate(player.x, player.y); ctx.scale(-1,1)
+      ctx.drawImage(sprite, -size/2, -size/2, size, size)
+    } else {
+      ctx.drawImage(sprite, player.x-size/2, player.y-size/2, size, size)
+    }
+  } else {
+    const {x,y,radius,color,facingRight} = player
+    ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fillStyle=color; ctx.fill()
+    ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=2; ctx.stroke()
+    const eyeDir = facingRight?1:-1, eyeY=y-8
+    ctx.beginPath(); ctx.arc(x-8,eyeY,7,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill()
+    ctx.beginPath(); ctx.arc(x-8+eyeDir*2,eyeY+1,4,0,Math.PI*2); ctx.fillStyle='#222'; ctx.fill()
+    ctx.beginPath(); ctx.arc(x+8,eyeY,7,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill()
+    ctx.beginPath(); ctx.arc(x+8+eyeDir*2,eyeY+1,4,0,Math.PI*2); ctx.fillStyle='#222'; ctx.fill()
+  }
+  ctx.restore()
+}
+
+function renderScene(ctx, ball, players) {
+  ctx.clearRect(0,0,CW,CH)
+  drawBackground(ctx)
+  drawNet(ctx)
+  for (const p of players) drawShadow(ctx, p.x, p.radius)
+  drawShadow(ctx, ball.x, ball.radius*1.6875)
+  for (const p of players) drawPokota(ctx, p)
+  pushTrail(ball)
+  drawSmashTrail(ctx, ball)
+  drawBallSprite(ctx, ball)
+}
+
+// ═══════════════════════════════════════════════════════════
+//  물리
+// ═══════════════════════════════════════════════════════════
+function dist(ax,ay,bx,by) { return Math.sqrt((ax-bx)**2+(ay-by)**2) }
+
+function capSpeed(ball) {
+  const speed = Math.sqrt(ball.vx**2+ball.vy**2)
+  if (speed>MAX_BALL_SPEED) { ball.vx=(ball.vx/speed)*MAX_BALL_SPEED; ball.vy=(ball.vy/speed)*MAX_BALL_SPEED }
+}
+
+function resolveSubStep(ball, players, stepVx, stepVy) {
+  const prevX=ball.x, prevY=ball.y
+  ball.x+=stepVx; ball.y+=stepVy
+  let hitPlayer=false, isNewSmash=false
+  if (ball.x-ball.radius<0) { ball.x=ball.radius; ball.vx=Math.abs(ball.vx) }
+  if (ball.x+ball.radius>CW) { ball.x=CW-ball.radius; ball.vx=-Math.abs(ball.vx) }
+  if (ball.y-ball.radius<0) { ball.y=ball.radius; ball.vy=Math.abs(ball.vy) }
+  const netLeft=NET_X-NET_W/2, netRight=NET_X+NET_W/2
+  const ballInNetHeight = ball.y+ball.radius>NET_TOP_Y
+  if (ballInNetHeight) {
+    if (prevX+ball.radius<=netLeft && ball.x+ball.radius>netLeft) { ball.x=netLeft-ball.radius; ball.vx=-Math.abs(ball.vx)*BALL_RESTITUTION }
+    else if (prevX-ball.radius>=netRight && ball.x-ball.radius<netRight) { ball.x=netRight+ball.radius; ball.vx=Math.abs(ball.vx)*BALL_RESTITUTION }
+    else if (ball.x+ball.radius>netLeft && ball.x-ball.radius<netRight) {
+      if (ball.x<NET_X) { ball.x=netLeft-ball.radius; ball.vx=-Math.abs(ball.vx)*BALL_RESTITUTION }
+      else { ball.x=netRight+ball.radius; ball.vx=Math.abs(ball.vx)*BALL_RESTITUTION }
+    }
+    if (ball.x+ball.radius>netLeft && ball.x-ball.radius<netRight && ball.y+ball.radius>NET_TOP_Y && prevY+ball.radius<=NET_TOP_Y) {
+      ball.y=NET_TOP_Y-ball.radius; ball.vy=-Math.abs(ball.vy)*BALL_RESTITUTION
+    }
+  }
+  for (const player of players) {
+    const dx=ball.x-player.x, dy=ball.y-player.y
+    const d=dist(ball.x,ball.y,player.x,player.y)
+    const minDist=ball.radius+player.radius
+    if (d<minDist && d>0) {
+      const overlap=minDist-d, nx=dx/d, ny=dy/d
+      const pushExtra = Math.abs(nx)<0.25 ? overlap+4 : overlap+1
+      ball.x+=nx*pushExtra; ball.y+=ny*pushExtra
+      const relVx=ball.vx-player.vx, relVy=ball.vy-player.vy
+      const relDotN=relVx*nx+relVy*ny
+      if (relDotN<0) {
+        hitPlayer=true
+        if (player.smashPressed) {
+          const targetDirX = player.side==='left'?1:-1
+          ball.vx=targetDirX*MAX_BALL_SPEED*0.9; ball.vy=MAX_BALL_SPEED*0.6
+          ball.isSmash=true; ball.smashTimer=35; isNewSmash=true
+        } else {
+          ball.vx-=relDotN*nx; ball.vy-=relDotN*ny
+          ball.vx+=player.vx*0.2; ball.vy+=player.vy*0.15
+          if (Math.abs(nx)<0.25) ball.vx+=(player.side==='left'?2.5:-2.5)
+          if (ny<-0.5 && ball.vy>-4) ball.vy=-4
+          const newSpeed=Math.sqrt(ball.vx**2+ball.vy**2)
+          if (newSpeed<6) { ball.vx=(ball.vx/newSpeed)*6; ball.vy=(ball.vy/newSpeed)*6 }
+        }
+        capSpeed(ball)
+      }
+    }
+  }
+  return {hitPlayer, isNewSmash}
+}
+
+function updateBall(ball, players) {
+  const wasSmash=ball.isSmash
+  let hitPlayer=false, isNewSmash=false
+  if (ball.isSmash) { ball.smashTimer--; if (ball.smashTimer<=0) ball.isSmash=false }
+  ball.vy+=GRAVITY; capSpeed(ball)
+  const stepVx=ball.vx/BALL_SUBSTEPS, stepVy=ball.vy/BALL_SUBSTEPS
+  for (let i=0;i<BALL_SUBSTEPS;i++) {
+    const r=resolveSubStep(ball,players,stepVx,stepVy)
+    if (r.hitPlayer) hitPlayer=true
+    if (r.isNewSmash) isNewSmash=true
+  }
+  for (const player of players) {
+    const dx2=ball.x-player.x, dy2=ball.y-player.y
+    const d2=Math.sqrt(dx2**2+dy2**2), minDist2=ball.radius+player.radius
+    if (d2<minDist2&&d2>0) {
+      const nx2=dx2/d2, ny2=dy2/d2, overlap2=minDist2-d2
+      ball.x+=nx2*(overlap2+2); ball.y+=ny2*(overlap2+2)
+      const dot2=ball.vx*nx2+ball.vy*ny2
+      if (dot2<0) {
+        ball.vx-=dot2*nx2; ball.vy-=dot2*ny2
+        if (Math.abs(nx2)<0.25) ball.vx+=(player.side==='left'?2.0:-2.0)
+        capSpeed(ball)
+      }
+    }
+  }
+  if (ball.y+ball.radius>=GROUND_Y) {
+    const scoringSide = ball.x<NET_X?'right':'left'
+    return {scoreEvent:{side:scoringSide},hitPlayer:false,isNewSmash:false}
+  }
+  return {scoreEvent:null,hitPlayer,isNewSmash:isNewSmash||(ball.isSmash&&!wasSmash)}
+}
+
+function updatePlayer(player, input) {
+  if (input.left) { player.vx=-PLAYER_SPEED; player.facingRight=false }
+  else if (input.right) { player.vx=PLAYER_SPEED; player.facingRight=true }
+  else player.vx=0
+  if (input.jump&&player.isOnGround) { player.vy=JUMP_VY; player.isOnGround=false }
+  player.smashPressed = input.smash&&!player.isOnGround
+  player.vy+=GRAVITY; player.x+=player.vx; player.y+=player.vy
+  if (player.y+player.radius>=GROUND_Y) { player.y=GROUND_Y-player.radius; player.vy=0; player.isOnGround=true }
+  const halfNet=NET_W/2
+  if (player.side==='left') {
+    if (player.x-player.radius<0) player.x=player.radius
+    if (player.x+player.radius>NET_X-halfNet) player.x=NET_X-halfNet-player.radius
+  } else {
+    if (player.x-player.radius<NET_X+halfNet) player.x=NET_X+halfNet+player.radius
+    if (player.x+player.radius>CW) player.x=CW-player.radius
+  }
+}
+
+function resetPlayer(player) {
+  player.x=player.side==='left'?P1_START_X:P2_START_X
+  player.y=GROUND_Y-player.radius; player.vx=0; player.vy=0
+  player.isOnGround=true; player.smashPressed=false
+}
+
+function resetBall(ball, servingSide) {
+  ball.x=servingSide==='left'?P1_START_X:P2_START_X
+  ball.y=ball.radius+5; ball.vx=0; ball.vy=2; ball.isSmash=false; ball.smashTimer=0
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AI
+// ═══════════════════════════════════════════════════════════
+function predictBallAtHeight(ball, targetY) {
+  let x=ball.x,y=ball.y,vx=ball.vx,vy=ball.vy
+  const netLeft=NET_X-6, netRight=NET_X+6
+  for (let i=0;i<180;i++) {
+    vy+=GRAVITY
+    const speed=Math.sqrt(vx**2+vy**2)
+    if (speed>MAX_BALL_SPEED) { vx=(vx/speed)*MAX_BALL_SPEED; vy=(vy/speed)*MAX_BALL_SPEED }
+    x+=vx; y+=vy
+    if (x-BALL_R<0) { x=BALL_R; vx=Math.abs(vx) }
+    if (x+BALL_R>CW) { x=CW-BALL_R; vx=-Math.abs(vx) }
+    if (y-BALL_R<0) { y=BALL_R; vy=Math.abs(vy) }
+    if (y+BALL_R>NET_TOP_Y) {
+      if (x+BALL_R>netLeft && x-BALL_R<netRight && y>280) {
+        if (vx>0) { x=netLeft-BALL_R; vx=-Math.abs(vx) }
+        else { x=netRight+BALL_R; vx=Math.abs(vx) }
+      }
+    }
+    if (y>=targetY) return {x,stepsAway:i}
+  }
+  return {x,stepsAway:180}
+}
+
+function computeAiInput(ai, ball, difficulty) {
+  const groundLevel=GROUND_Y-PLAYER_R
+  const moveRel=difficulty==='easy'?0.55:difficulty==='normal'?0.80:0.97
+  const jumpRel=difficulty==='easy'?0.50:difficulty==='normal'?0.82:0.97
+  const smashRel=difficulty==='easy'?0.00:difficulty==='normal'?0.55:0.90
+  const posErr=difficulty==='easy'?70:difficulty==='normal'?28:6
+
+  const hitY=ai.y-PLAYER_R*0.6
+  const pred=predictBallAtHeight(ball, hitY)
+  const errOffset=(Math.random()-0.5)*posErr
+  let targetX=pred.x+errOffset
+
+  const courtMin=ai.side==='right'?NET_X+6+PLAYER_R:PLAYER_R
+  const courtMax=ai.side==='right'?CW-PLAYER_R:NET_X-6-PLAYER_R
+  targetX=Math.max(courtMin,Math.min(courtMax,targetX))
+
+  const ballOnMySide=ai.side==='right'?ball.x>NET_X:ball.x<NET_X
+  const ballHeadingToMe=ai.side==='right'?ball.vx>-1:ball.vx<1
+  if (!ballOnMySide&&!ballHeadingToMe) {
+    const readyX=ai.side==='right'?620:180
+    targetX=readyX+(Math.random()-0.5)*40
+  }
+
+  const dx=targetX-ai.x
+  const deadzone=difficulty==='easy'?25:difficulty==='normal'?12:5
+  const left=dx<-deadzone&&Math.random()<moveRel
+  const right=dx>deadzone&&Math.random()<moveRel
+
+  const ballIsHittable=(ballOnMySide||ballHeadingToMe)&&Math.abs(ball.x-ai.x)<(difficulty==='easy'?150:difficulty==='normal'?200:260)&&ball.y<groundLevel-50
+  const ballDropping=ball.vy>0, ballLowEnough=ball.y>180
+  const jump=ai.isOnGround&&ballIsHittable&&(ballDropping||ballLowEnough)&&Math.random()<jumpRel
+
+  const atJumpPeak=!ai.isOnGround&&ai.vy>-5&&ai.vy<3
+  const ballNearby=Math.abs(ball.x-ai.x)<ai.radius+ball.radius+50&&ball.y<ai.y+20&&ball.y>ai.y-ai.radius*2.5
+  const smash=atJumpPeak&&ballNearby&&Math.random()<smashRel
+
+  return {left,right,jump,smash}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  키보드
+// ═══════════════════════════════════════════════════════════
+const keyState = {}
+window.addEventListener('keydown', e => {
+  keyState[e.code]=true
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault()
+  if (e.code==='Escape') onEsc()
+})
+window.addEventListener('keyup', e => { keyState[e.code]=false })
+
+function getInputs() {
+  return {
+    p1: { left:!!keyState['KeyA'], right:!!keyState['KeyD'], jump:!!keyState['KeyW'], smash:!!keyState['ShiftLeft'] },
+    p2: { left:!!keyState['ArrowLeft'], right:!!keyState['ArrowRight'], jump:!!keyState['ArrowUp'], smash:!!keyState['ShiftRight'] },
+  }
+}
+function resetKeys() { for (const k in keyState) keyState[k]=false }
+
+// ═══════════════════════════════════════════════════════════
+//  게임 상태
+// ═══════════════════════════════════════════════════════════
+const canvas = document.getElementById('canvas')
+const ctx = canvas.getContext('2d')
+
+let phase = 'menu'   // menu | ready-go | playing | paused | game-over
+let currentMode = '1p', currentDiff = 'normal'
+let score = {left:0, right:0}
+let winner = null
+let servingSide = 'left'
+let readyGoTimer = 0
+let resetTimer = 0
+let hitCooldown = 0
+let rafId = 0
+
+const ball = { x:200,y:200,vx:4,vy:-10,radius:BALL_R,isSmash:false,smashTimer:0 }
+const player1 = { x:P1_START_X,y:GROUND_Y-PLAYER_R,vx:0,vy:0,radius:PLAYER_R,side:'left',isOnGround:true,facingRight:true,color:'#FF6B9D',eyeColor:'#1565C0',smashPressed:false }
+const player2 = { x:P2_START_X,y:GROUND_Y-PLAYER_R,vx:0,vy:0,radius:PLAYER_R,side:'right',isOnGround:true,facingRight:false,color:'#42A5F5',eyeColor:'#1B5E20',smashPressed:false }
+const players = [player1, player2]
+
+// ─ Ready/Go UI ─
+let readyGoVisible = false, readyGoStep = null
+function showReadyGo(step) {
+  readyGoStep = step
+  readyGoVisible = false
+  const el = document.getElementById('readygo')
+  const box = document.getElementById('readygo-box')
+  const text = document.getElementById('readygo-text')
+  el.classList.remove('hidden')
+  box.classList.add('hidden')
+  if (step === 'ready') {
+    text.textContent = 'READY'
+    text.style.fontSize = '64px'; text.style.color = '#FFD700'
+    text.style.textShadow = '0 0 30px rgba(255,215,0,0.8), 0 4px 0 rgba(0,0,0,0.5)'
+  } else {
+    text.textContent = 'GO!'
+    text.style.fontSize = '80px'; text.style.color = '#FF4444'
+    text.style.textShadow = '0 0 40px rgba(255,68,68,0.9), 0 4px 0 rgba(0,0,0,0.5)'
+  }
+  setTimeout(() => { box.classList.remove('hidden') }, 30)
+}
+function hideReadyGo() {
+  document.getElementById('readygo').classList.add('hidden')
+}
+
+function updateHUD() {
+  document.getElementById('score-left').textContent = score.left
+  document.getElementById('score-right').textContent = score.right
+}
+
+function showPhase(p) {
+  phase = p
+  document.getElementById('menu').classList.toggle('hidden', p !== 'menu')
+  document.getElementById('hud').classList.toggle('hidden', p !== 'playing' && p !== 'ready-go')
+  document.getElementById('pause').classList.toggle('hidden', p !== 'paused')
+  document.getElementById('gameover').classList.toggle('hidden', p !== 'game-over')
+  if (p !== 'ready-go') hideReadyGo()
+}
+
+function setLabels(mode) {
+  const isP1 = mode === '1p'
+  document.getElementById('label-left').textContent = isP1 ? '나' : 'P1'
+  document.getElementById('label-right').textContent = isP1 ? 'AI' : 'P2'
+  document.getElementById('final-label-left').textContent = isP1 ? '나' : 'P1'
+  document.getElementById('final-label-right').textContent = isP1 ? 'AI' : 'P2'
+}
+
+// ═══════════════════════════════════════════════════════════
+//  게임 루프
+// ═══════════════════════════════════════════════════════════
+function tick() {
+  if (phase === 'ready-go') {
+    const prevStep = READY_GO_TOTAL-readyGoTimer < READY_FRAMES ? 'ready' : 'go'
+    readyGoTimer--
+    const currStep = READY_GO_TOTAL-readyGoTimer < READY_FRAMES ? 'ready' : 'go'
+    if (prevStep !== currStep || readyGoTimer === READY_GO_TOTAL-1) {
+      if (currStep === 'ready') showReadyGo('ready')
+      else showReadyGo('go')
+    }
+    if (readyGoTimer <= 0) {
+      hideReadyGo()
+      showPhase('playing')
+    }
+    return
+  }
+
+  if (resetTimer > 0) {
+    resetTimer--
+    if (resetTimer === 0) {
+      resetBall(ball, servingSide)
+      resetPlayer(player1)
+      resetPlayer(player2)
+      hitCooldown = 0
+    }
+    return
+  }
+
+  if (phase !== 'playing') return
+  if (hitCooldown > 0) hitCooldown--
+
+  const inputs = getInputs()
+  updatePlayer(player1, inputs.p1)
+  const p2Input = currentMode === '1p' ? computeAiInput(player2, ball, currentDiff) : inputs.p2
+  updatePlayer(player2, p2Input)
+
+  const result = updateBall(ball, players)
+
+  if (result.isNewSmash) playSmash()
+  else if (result.hitPlayer && hitCooldown === 0) { playHit(); hitCooldown = 8 }
+
+  if (result.scoreEvent) {
+    const {side} = result.scoreEvent
+    score[side]++
+    playScore()
+    updateHUD()
+
+    if (score[side] >= WIN_SCORE) {
+      winner = side
+      showPhase('game-over')
+      stopBgm()
+      playWin()
+      const isLeftWin = side === 'left'
+      const winnerName = currentMode === '1p' ? (isLeftWin ? '내가' : 'AI가') : (isLeftWin ? 'P1이' : 'P2이')
+      const winnerColor = isLeftWin ? '#FF6B9D' : '#42A5F5'
+      document.getElementById('winner-text').textContent = winnerName + ' 이겼어요!'
+      document.getElementById('winner-text').style.color = winnerColor
+      document.getElementById('trophy').style.background = winnerColor
+      document.getElementById('final-score-left').textContent = score.left
+      document.getElementById('final-score-right').textContent = score.right
+      document.getElementById('btn-restart').style.background = winnerColor
+      return
+    }
+    servingSide = side
+    resetTimer = 60
+  }
+}
+
+const READY_GO_TOTAL = READY_FRAMES + GO_FRAMES
+
+function loop() {
+  tick()
+  if (phase === 'playing' || phase === 'ready-go') renderScene(ctx, ball, players)
+  rafId = requestAnimationFrame(loop)
+}
+
+function startLoop() {
+  if (rafId) return
+  rafId = requestAnimationFrame(loop)
+}
+
+function stopLoop() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  게임 제어
+// ═══════════════════════════════════════════════════════════
+function startGame(mode, diff) {
+  resumeAudio()
+  stopLoop()
+  resetKeys()
+  currentMode = mode; currentDiff = diff
+  score = {left:0, right:0}; winner = null; servingSide = 'left'
+  hitCooldown = 0; resetTimer = 0
+  readyGoTimer = READY_GO_TOTAL
+  ballTrail.length = 0
+
+  ball.x=P1_START_X; ball.y=ball.radius+5; ball.vx=4; ball.vy=-10; ball.isSmash=false; ball.smashTimer=0
+  resetPlayer(player1); resetPlayer(player2)
+
+  setLabels(mode); updateHUD()
+  showPhase('ready-go')
+  showReadyGo('ready')
+  startBgm()
+  startLoop()
+}
+
+function resumeGame() {
+  if (phase !== 'paused') return
+  showPhase('playing')
+}
+
+function goMenu() {
+  stopLoop(); stopBgm(); resetKeys()
+  ballTrail.length = 0
+  showPhase('menu')
+}
+
+function restartGame() { startGame(currentMode, currentDiff) }
+
+function onEsc() {
+  if (phase === 'playing') showPhase('paused')
+  else if (phase === 'paused') showPhase('playing')
+}
+
+// 초기화
+showPhase('menu')
+startLoop()
+</script>
+</body>
+</html>
