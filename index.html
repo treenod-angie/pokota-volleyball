@@ -688,10 +688,10 @@ function predictBallAtHeight(ball, targetY) {
 
 function computeAiInput(ai, ball, difficulty) {
   const groundLevel=GROUND_Y-PLAYER_R
-  const moveRel=difficulty==='easy'?0.55:difficulty==='normal'?0.80:0.97
-  const jumpRel=difficulty==='easy'?0.50:difficulty==='normal'?0.82:0.97
+  const moveRel=difficulty==='easy'?0.49:difficulty==='normal'?0.80:0.97
+  const jumpRel=difficulty==='easy'?0.40:difficulty==='normal'?0.82:0.97
   const smashRel=difficulty==='easy'?0.00:difficulty==='normal'?0.55:0.90
-  const posErr=difficulty==='easy'?70:difficulty==='normal'?28:6
+  const posErr=difficulty==='easy'?90:difficulty==='normal'?28:6
 
   const hitY=ai.y-PLAYER_R*0.6
   const pred=predictBallAtHeight(ball, hitY)
